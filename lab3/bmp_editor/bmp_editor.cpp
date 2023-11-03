@@ -55,6 +55,30 @@ struct Color
     BYTE blue;
     BYTE green;
     BYTE red;
+
+    Color() {}
+
+
+    Color(int red, int green, int blue) {
+        this->red = red;
+        this->green = green; 
+        this->blue = blue;
+    }
+};
+
+struct IntColor
+{
+    int blue;
+    int green;
+    int red;
+
+    IntColor() {}
+
+    IntColor(int red, int green, int blue) {
+        this->red = red;
+        this->green = green; 
+        this->blue = blue;
+    }
 };
 
 void bmpHeaderToKzsHeader();
@@ -95,6 +119,17 @@ void clearMemory();
 
 void filter(int cX, int cY, int limit);
 
+void stretchWidth(double scale);
+
+boolean isPixelEmpty(IntColor pixel);
+
+IntColor fromColor(Color pixel);
+
+Color fromIntColor(IntColor pixel);
+
+double readScale();
+
+
 
 Color *srcImage = 0, *dstImage = 0;
 BYTE *brightness = 0, *contrast;
@@ -108,74 +143,80 @@ int imgType = 0;
 int width = 0, height = 0;
 //---------------------------------
 int main() {
-    int constLimit = 15;
-    // исходное
-    string path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\Ducky.bmp";
+    
+    string path = readPath();
     openImage(path);
-    showImage(path);
-    imgToBrightness();
-    contrastRoberts();
-    limit(constLimit);
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyContrast.bmp";
-    saveImage(path);
-    showImage(path);
-
-    // исходное плюс фильтр
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\Ducky.bmp";
-    openImage(path);
-    showImage(path);
-    // фильтр
-    filter(readCenterX(), readCenterY(), readLimit()); // выбор центра окна, окно 3 на 3 (крестообразное)
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyFilter.bmp";
-    saveImage(path);
-    showImage(path);
-
-    imgToBrightness();
-    contrastRoberts();
-    limit(constLimit);
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyFilterContrast.bmp";
-    saveImage(path);
-    showImage(path);
-
-    // зашумленное
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\Ducky.bmp";
-    openImage(path);
-    showImage(path);
-    // шум
-    addNoise(readNoiseProbability());
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyNoise.bmp";
-    saveImage(path);
-    showImage(path);
-
-    imgToBrightness();
-    contrastRoberts();
-    limit(constLimit);
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyNoiseContrast.bmp";
-    saveImage(path);
     showImage(path);
     
-    // зашумленное отфильтрованное
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\Ducky.bmp";
-    openImage(path);
-    showImage(path);
-    // шум
-    addNoise(readNoiseProbability());
-    filter(readCenterX(), readCenterY(), readLimit());
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyNoiseFilter.bmp";
+
+    stretchWidth(readScale());
+
+    path = readPath();
     saveImage(path);
     showImage(path);
 
-    imgToBrightness();
-    contrastRoberts();
-    limit(constLimit);
-    path = "C:\\Users\\admin\\Desktop\\Example_source\\SimpleBitmap\\DuckyNoiseFilterContrast.bmp";
-    saveImage(path);
-    showImage(path);
 
     clearMemory();
     return 0;
 }
 //---------------------------------
+
+
+
+void stretchWidth(double scale) {
+    int newWidth = width * scale;
+    IntColor *image = new IntColor[height * newWidth];
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < newWidth; j++) {
+            image[i * newWidth + j].red = -1;
+        }
+    }
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            image[i * newWidth + (int)(j * scale)] = fromColor(srcImage[i * width + j]);
+        }
+    }
+
+    delete[] srcImage;
+    srcImage = new Color[newWidth * height];
+
+    for (int i = 0; i < height; i++) {
+        if (isPixelEmpty(image[i * newWidth])) {
+            image[i * newWidth].red = image[i * newWidth + 1].red;
+            image[i * newWidth].green = image[i * newWidth + 1].green;
+            image[i * newWidth].blue = image[i * newWidth + 1].blue;
+        }
+        srcImage[i * newWidth] = fromIntColor(image[i * newWidth]);
+        for (int j = 1; j < newWidth; j++) {
+            if (isPixelEmpty(image[i * newWidth + j])) {
+                image[i * newWidth + j].red = image[i * newWidth + j - 1].red;
+                image[i * newWidth + j].green = image[i * newWidth + j - 1].green;
+                image[i * newWidth + j].blue =  image[i * newWidth + j - 1].blue;
+            }
+            srcImage[i * newWidth + j] = fromIntColor(image[i * newWidth + j]);
+        }
+    }
+
+    
+    bmpFileHead.bfSize = bmpFileHead.bfSize + (newWidth - width) * height * sizeof(Color);
+    bmpInfoHead.biWidth = newWidth;
+    bmpInfoHead.biSizeImage = newWidth * height;
+    width = newWidth;
+}
+
+IntColor fromColor(Color pixel) {
+    return IntColor(pixel.red, pixel.green, pixel.blue);
+}
+
+Color fromIntColor(IntColor pixel) {
+    return Color(pixel.red, pixel.green, pixel.blue);
+}
+
+
+boolean isPixelEmpty(IntColor pixel) {
+    return pixel.red == -1;
+}
 
 void imgToBrightness() {
     delete[] brightness;
@@ -475,6 +516,13 @@ int readCenterY() {
 int readLimit() {
     cout << "Limit: ";
     int tmp;
+    cin >> tmp;
+    return tmp;
+}
+
+double readScale() {
+    cout << "Scale: ";
+    double tmp;
     cin >> tmp;
     return tmp;
 }
